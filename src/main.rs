@@ -2,7 +2,7 @@ use {
     pest::Parser,
     pnc::{codegen, Compiler, Penance, Rule},
     std::{
-        fs::File,
+        fs::{File, remove_file},
         io::{self, Read, Write},
         path::{Path, PathBuf},
         process::{exit, Command},
@@ -41,6 +41,8 @@ fn main() -> io::Result<()> {
         Command::new("cc")
             .args(&[&object_file, Path::new("-o"), &opts.output])
             .status()?;
+
+        remove_file(object_file)?;
     } else {
         eprintln!("Failed to parse input.");
         exit(1);
