@@ -14,7 +14,7 @@ use {
     pnc::{codegen, Compiler, Penance, Rule},
     std::{
         fs::File,
-        io::Write,
+        io::{Write, Read},
         path::{Path, PathBuf},
         process::{exit, Command},
     },
@@ -29,9 +29,12 @@ pub struct Opts {
 }
 
 fn main() {
-    let _opts = Opts::from_args();
+    let opts = Opts::from_args();
 
-    if let Ok(stream) = Penance::parse(Rule::file, "(100)") {
+    let mut buf = String::new();
+    File::open(opts.input).unwrap().read_to_string(&mut buf).unwrap();
+
+    if let Ok(stream) = Penance::parse(Rule::file, &buf) {
         let mut compiler = Compiler::new();
         let parsed = stream.last().unwrap();
 
