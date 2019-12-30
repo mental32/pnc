@@ -7,9 +7,10 @@ use {
     cranelift_frontend::{FunctionBuilder},
     pest::iterators::Pair,
     crate::parsing::Rule,
+    std::io,
 };
 
-pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> Result<(), ()> {
+pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Result<()> {
     match dbg!(pair.as_rule()) {
         Rule::file => {
             for inner in pair.into_inner() {
