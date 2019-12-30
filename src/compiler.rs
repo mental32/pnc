@@ -23,14 +23,17 @@ pub struct Compiler {
 impl Compiler {
     pub fn new() -> Self {
         let mut flags_builder = settings::builder();
+
         // allow creating shared libraries
         flags_builder
             .enable("is_pic")
             .expect("is_pic should be a valid option");
+
         // use debug assertions
         flags_builder
             .enable("enable_verifier")
             .expect("enable_verifier should be a valid option");
+
         // minimal optimizations
         flags_builder
             .set("opt_level", "speed")
@@ -85,6 +88,7 @@ impl Compiler {
 
         let start = builder.create_ebb();
         builder.switch_to_block(start);
+
         let zero = builder.ins().iconst(I32, 0);
         builder.ins().stack_store(zero, exit_status_slot, 0);
 
@@ -109,7 +113,7 @@ impl Compiler {
         verify_function(&main, &flags).unwrap();
 
         compiler
-            .define_function(main, "main", Linkage::Export, signature)
+            .define_function(main, "main", Linkage::Export)
             .unwrap();
 
         Ok(compiler.module.finish())
@@ -120,11 +124,14 @@ impl Compiler {
         func: Function,
         name: &str,
         linkage: Linkage,
-        signature: Signature,
     ) -> Result<FuncId, ModuleError> {
-        let fid = self.module.declare_function(name, linkage, &signature)?;
-        let mut ctx = Context::for_function(func);
-        self.module.define_function(fid, &mut ctx).unwrap();
+        let fid = self
+            .module
+            .declare_function(name, linkage, &func.signature)?;
+
+        self.module
+            .define_function(fid, &mut Context::for_function(func))?;
+
         Ok(fid)
     }
 }
