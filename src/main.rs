@@ -1,138 +1,36 @@
-#[macro_use]
-extern crate pest_derive;
-extern crate pest;
-
 use {
     cranelift_codegen::{
         ir::{
-            immediates::Imm64,
-            types::{B8, I32, I64, I8},
-            AbiParam, ExternalName, Function, InstBuilder, Signature, StackSlotData, StackSlotKind,
+            types::I32, AbiParam, ExternalName, Function, InstBuilder, Signature, StackSlotData,
+            StackSlotKind,
         },
-        isa::{self, CallConv},
-        settings::{self, Configurable},
-        verify_function, Context,
+        isa::CallConv,
+        settings::{self},
+        verify_function,
     },
-    cranelift_faerie::{FaerieBackend, FaerieBuilder, FaerieTrapCollection},
     cranelift_frontend::{FunctionBuilder, FunctionBuilderContext},
-    cranelift_module::{Backend, Linkage, Module as CraneliftModule},
-    pest::{iterators::Pair, Parser},
+    cranelift_module::Linkage,
+    pest::Parser,
+    pnc::{codegen, Compiler, Penance, Rule},
     std::{
         fs::File,
         io::Write,
-        path::Path,
+        path::{Path, PathBuf},
         process::{exit, Command},
     },
+    structopt::StructOpt,
 };
 
-pub type Product = <FaerieBackend as Backend>::Product;
-pub type Module = CraneliftModule<FaerieBackend>;
-
-#[derive(Parser)]
-#[grammar = "pnc.pest"]
-pub struct Penance;
-
-pub struct Compiler {
-    pub module: Module,
-}
-
-impl Compiler {
-    pub fn new() -> Self {
-        let mut flags_builder = settings::builder();
-        // allow creating shared libraries
-        flags_builder
-            .enable("is_pic")
-            .expect("is_pic should be a valid option");
-        // use debug assertions
-        flags_builder
-            .enable("enable_verifier")
-            .expect("enable_verifier should be a valid option");
-        // minimal optimizations
-        flags_builder
-            .set("opt_level", "speed")
-            .expect("opt_level: speed should be a valid option");
-
-        let isa = isa::lookup(target_lexicon::Triple::host())
-            .unwrap()
-            .finish(settings::Flags::new(flags_builder));
-
-        let builder = FaerieBuilder::new(
-            isa,
-            "<empty>".to_string(),
-            FaerieTrapCollection::Disabled,
-            cranelift_module::default_libcall_names(),
-        )
-        .unwrap();
-
-        Self {
-            module: Module::new(builder),
-        }
-    }
-
-    pub fn define_function(
-        &mut self,
-        func: Function,
-        name: &str,
-        linkage: Linkage,
-        signature: Signature,
-    ) -> Result<(), ()> {
-        let fid = self
-            .module
-            .declare_function(name, linkage, &signature)
-            .unwrap();
-
-        let mut ctx = Context::for_function(func);
-        self.module.define_function(fid, &mut ctx).unwrap();
-        Ok(())
-    }
-}
-
-fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> Result<(), ()> {
-    match dbg!(pair.as_rule()) {
-        Rule::file => {
-            for inner in pair.into_inner() {
-                codegen(inner, &mut builder)?;
-            }
-        }
-
-        Rule::s_expr | Rule::atom => {
-            let block = builder.create_ebb();
-            builder.ins().jump(block, &[]);
-            builder.switch_to_block(block);
-
-            for inner in pair.into_inner() {
-                codegen(inner, &mut builder)?;
-            }
-        }
-
-        Rule::boolean => {
-            let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 0);
-            let slot = builder.create_stack_slot(data);
-
-            {
-                let false_ = builder.ins().bconst(B8, false);
-                let int_false = builder.ins().bint(I8, false_);
-                builder.ins().stack_store(int_false, slot, 0);
-            }
-        }
-
-        Rule::number => {
-            let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 0);
-            let slot = builder.create_stack_slot(data);
-
-            let raw_n: i64 = dbg!(pair.as_str().parse().unwrap());
-            let encoded = builder.ins().iconst(I64, Imm64::new(raw_n));
-            builder.ins().stack_store(encoded, slot, 0);
-        }
-
-        Rule::EOI => {}
-        _ => unreachable!("You've gone and fucked it now have't you?"),
-    }
-
-    Ok(())
+#[derive(Debug, StructOpt)]
+#[structopt(name = "pnc", about = "A small CL compiler.")]
+pub struct Opts {
+    #[structopt(name = "FILE", parse(from_os_str))]
+    input: PathBuf,
 }
 
 fn main() {
+    let _opts = Opts::from_args();
+
     if let Ok(stream) = Penance::parse(Rule::file, "(100)") {
         let mut compiler = Compiler::new();
         let parsed = stream.last().unwrap();
