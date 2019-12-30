@@ -6,7 +6,7 @@ s_expr = { "(" ~ whitespace* ~ (atom | operation | s_expr)? ~ whitespace* ~ ")" 
 whitespace = _{ " " | NEWLINE }
 boolean = { truth | falsity }
 number = { ASCII_DIGIT+ }
-name = { (ASCII_ALPHA | "_")+ }
+name = { (ASCII_ALPHA | "_" | "-")+ }
 string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 operation = { operator ~ " " ~ whitespaced }
 
