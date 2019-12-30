@@ -1,0 +1,16 @@
+[package]
+name = "pnc"
+version = "0.1.0"
+authors = ["mental <m3nta1@yahoo.com>"]
+edition = "2018"
+license = "MIT"
+description = "A small lisp-like compiled language."
+
+[dependencies]
+cranelift-faerie = "0.52.0"
+cranelift-codegen = "0.52.0"
+cranelift-module = "0.52.0"
+pest = "2.1.2"
+pest_derive = "2.1.0"
+target-lexicon = "0.9.0"
+cranelift-frontend = "0.52.0"
