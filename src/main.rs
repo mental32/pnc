@@ -15,6 +15,9 @@ use {
 pub struct Opts {
     #[structopt(name = "FILE", parse(from_os_str))]
     input: PathBuf,
+
+    #[structopt(short, long, default_value = "a.out", parse(from_os_str))]
+    output: PathBuf,
 }
 
 fn main() -> io::Result<()> {
@@ -28,16 +31,15 @@ fn main() -> io::Result<()> {
 
         let product = Compiler::compile(|mut builder| codegen(parsed, &mut builder))?;
 
-        let obj_file = "a.obj";
-        let output = "a.out";
+        let object_file = Path::new("a.obj");
 
         // Assemble and produe object binaries.
         let bytes = product.emit().unwrap();
-        File::create(Path::new(obj_file))?.write_all(&bytes)?;
+        File::create(object_file)?.write_all(&bytes)?;
 
         // Link the object file using host linker
         Command::new("cc")
-            .args(&[&Path::new(obj_file), Path::new("-o"), Path::new(output)])
+            .args(&[&object_file, Path::new("-o"), &opts.output])
             .status()?;
     } else {
         eprintln!("Failed to parse input.");
