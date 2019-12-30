@@ -55,14 +55,10 @@ impl Compiler {
         name: &str,
         linkage: Linkage,
         signature: Signature,
-    ) -> Result<(), ()> {
-        let fid = self
-            .module
-            .declare_function(name, linkage, &signature)
-            .unwrap();
-
+    ) -> Result<FuncId, ModuleError> {
+        let fid = self.module.declare_function(name, linkage, &signature)?;
         let mut ctx = Context::for_function(func);
         self.module.define_function(fid, &mut ctx).unwrap();
-        Ok(())
+        Ok(fid)
     }
 }
