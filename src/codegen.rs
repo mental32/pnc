@@ -1,12 +1,12 @@
 use {
+    crate::parsing::Rule,
     cranelift_codegen::ir::{
         immediates::Imm64,
         types::{B8, I64, I8},
         InstBuilder, StackSlotData, StackSlotKind,
     },
-    cranelift_frontend::{FunctionBuilder},
+    cranelift_frontend::FunctionBuilder,
     pest::iterators::Pair,
-    crate::parsing::Rule,
     std::io,
 };
 
@@ -18,7 +18,7 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Resul
             }
         }
 
-        Rule::s_expr | Rule::atom => {
+        Rule::s_expr => {
             let block = builder.create_ebb();
             builder.ins().jump(block, &[]);
             builder.switch_to_block(block);
@@ -28,6 +28,8 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Resul
             }
         }
 
+        Rule::atom => codegen(pair.into_inner().last().unwrap(), &mut builder)?,
+
         Rule::boolean => {
             let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 0);
             let slot = builder.create_stack_slot(data);
@@ -35,7 +37,7 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Resul
             let bool_ = match pair.as_rule() {
                 Rule::truth => builder.ins().bconst(B8, true),
                 Rule::falsity => builder.ins().bconst(B8, false),
-                _ => unreachable!("What the fuck kinda boolean literal is this?!") 
+                _ => unreachable!("What the fuck kinda boolean literal is this?!"),
             };
 
             let int_bool = builder.ins().bint(I8, bool_);
