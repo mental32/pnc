@@ -1,6 +1,6 @@
 use {
     pest::Parser,
-    pnc::{codegen, Compiler, Penance, Product, Rule},
+    pnc::{codegen, Compiler, Penance, Rule},
     std::{
         fs::File,
         io::{self, Read, Write},
@@ -26,7 +26,7 @@ fn main() -> io::Result<()> {
     if let Ok(stream) = Penance::parse(Rule::file, &buf) {
         let parsed = stream.last().unwrap();
 
-        let product: Product = Compiler::compile(|mut builder| codegen(parsed, &mut builder))?;
+        let product = Compiler::compile(|mut builder| codegen(parsed, &mut builder))?;
 
         let obj_file = "a.obj";
         let output = "a.out";
