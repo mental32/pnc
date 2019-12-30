@@ -70,7 +70,10 @@ fn main() {
 
         builder.seal_all_blocks();
         builder.finalize();
-        println!("{:?}", main);
+
+        {
+            dbg!(&main);
+        }
 
         verify_function(&main, &flags).unwrap();
 
@@ -96,7 +99,7 @@ fn main() {
             .status()
             .unwrap();
     } else {
-        eprintln!("Failed to compile");
+        eprintln!("Failed to parse input.");
         exit(1);
     }
 }
