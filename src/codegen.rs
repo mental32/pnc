@@ -6,6 +6,7 @@ use {
     },
     cranelift_frontend::{FunctionBuilder},
     pest::iterators::Pair,
+    crate::parsing::Rule,
 };
 
 pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> Result<(), ()> {
@@ -55,7 +56,3 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> Result<()
 
     Ok(())
 }
-
-#[derive(Parser)]
-#[grammar = "pnc.pest"]
-pub struct Penance;

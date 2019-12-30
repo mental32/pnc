@@ -4,5 +4,6 @@ extern crate pest;
 
 mod codegen;
 mod compiler;
+mod parsing;
 
-pub use {codegen::*, compiler::*};
+pub use {codegen::*, compiler::*, parsing::*};
