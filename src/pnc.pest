@@ -3,14 +3,14 @@ file = {SOI ~ (s_expr | atom) ~ NEWLINE* ~ EOI}
 atom = { boolean | number | string }
 s_expr = { "(" ~ whitespace* ~ (atom | operation | s_expr)? ~ whitespace* ~ ")" }
 
-whitespace = _{ " " | NEWLINE }
 boolean = { truth | falsity }
-number = { ASCII_DIGIT+ }
-name = { (ASCII_ALPHA | "_" | "-")+ }
-string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 operation = { operator ~ " " ~ whitespaced }
-
-truth = { "t" }
-falsity = { "nil" | "()" }
 operator = { ("+" | "-" | "*" | "/" | name) }
 whitespaced = _{ (atom | s_expr) ~ (" " ~ (atom | s_expr))* }
+
+whitespace = _{ " " | NEWLINE }
+string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+number = { ASCII_DIGIT+ }
+name = { (ASCII_ALPHA | "_" | "-")+ }
+truth = { "t" }
+falsity = { "nil" | "()" }
