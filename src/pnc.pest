@@ -8,9 +8,9 @@ boolean = { truth | falsity }
 number = { ASCII_DIGIT+ }
 name = { (ASCII_ALPHA | "_")+ }
 string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
-operation = { operator ~ " " ~ whitespaced_atoms }
+operation = { operator ~ " " ~ whitespaced }
 
 truth = { "t" }
 falsity = { "nil" | "()" }
 operator = { ("+" | "-" | "*" | "/" | name) }
-whitespaced_atoms = _{ atom ~ (" " ~ atom)* }
+whitespaced = _{ (atom | s_expr) ~ (" " ~ (atom | s_expr))* }
