@@ -30,11 +30,14 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> Result<()
             let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 0);
             let slot = builder.create_stack_slot(data);
 
-            {
-                let false_ = builder.ins().bconst(B8, false);
-                let int_false = builder.ins().bint(I8, false_);
-                builder.ins().stack_store(int_false, slot, 0);
-            }
+            let bool_ = match pair.as_str() {
+                "t" => builder.ins().bconst(B8, true),
+                "nil" | "()" => builder.ins().bconst(B8, false),
+                _ => unreachable!("What the fuck kinda boolean literal is this?!") 
+            };
+
+            let int_bool = builder.ins().bint(I8, bool_);
+            builder.ins().stack_store(int_bool, slot, 0);
         }
 
         Rule::number => {
