@@ -34,7 +34,9 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Resul
             let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 1);
             let slot = builder.create_stack_slot(data);
 
-            let bool_ = match pair.as_rule() {
+            let inner = pair.into_inner().last().unwrap();
+
+            let bool_ = match inner.as_rule() {
                 Rule::truth => builder.ins().bconst(B8, true),
                 Rule::falsity => builder.ins().bconst(B8, false),
                 _ => unreachable!("What the fuck kinda boolean literal is this?!"),
