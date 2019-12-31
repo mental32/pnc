@@ -1,16 +1,16 @@
-file = {SOI ~ (s_expr | atom) ~ NEWLINE* ~ EOI}
+file = {SOI ~ (s_expr | atom) ~ whitespace* ~ EOI}
 
-atom = { boolean | number | string }
-s_expr = { "(" ~ whitespace* ~ (atom | operation | s_expr)? ~ whitespace* ~ ")" }
+atom = { boolean | number | string | name }
+s_expr = { "(" ~ whitespace* ~ (operation | s_expr | atom)? ~ whitespace* ~ ")" }
 
 boolean = { truth | falsity }
-operation = { operator ~ " " ~ whitespaced }
-operator = { ("+" | "-" | "*" | "/" | name) }
-whitespaced = _{ (atom | s_expr) ~ (" " ~ (atom | s_expr))* }
+operation = { (s_expr | operator) ~ whitespace* ~ whitespaced }
+operator = { ("+" | "-" | "*" | "//" | "/" | name) }
+whitespaced = _{ whitespace* ~ (atom | s_expr) ~ (whitespace* ~ (atom | s_expr))* }
 
 whitespace = _{ " " | NEWLINE }
-string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 number = { ASCII_DIGIT+ }
 name = { (ASCII_ALPHA | "_" | "-")+ }
+string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 truth = { "t" }
 falsity = { "nil" | "()" }
