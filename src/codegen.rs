@@ -31,7 +31,7 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Resul
         Rule::atom => codegen(pair.into_inner().last().unwrap(), &mut builder)?,
 
         Rule::boolean => {
-            let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 0);
+            let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 1);
             let slot = builder.create_stack_slot(data);
 
             let bool_ = match pair.as_rule() {
@@ -45,7 +45,7 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Resul
         }
 
         Rule::number => {
-            let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 0);
+            let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 8);
             let slot = builder.create_stack_slot(data);
 
             let raw_n: i64 = dbg!(pair.as_str().parse().unwrap());
