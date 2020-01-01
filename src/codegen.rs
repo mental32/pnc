@@ -3,18 +3,36 @@ use {
     cranelift_codegen::ir::{
         immediates::Imm64,
         types::{B8, I64, I8},
-        InstBuilder, StackSlotData, StackSlotKind,
+        Inst, InstBuilder, Type, Value,
     },
-    cranelift_frontend::FunctionBuilder,
+    cranelift_frontend::{FunctionBuilder, Variable},
+    cranelift_entity::EntityRef,
     pest::iterators::Pair,
     std::io,
 };
 
-pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Result<()> {
+pub type TypedValue = (Value, Type);
+
+#[derive(Debug)]
+pub enum CodeChange {
+    BlockReturns(Vec<TypedValue>),
+    Instr(Inst),
+    Value(Value),
+    TypedValue(TypedValue),
+}
+
+pub fn codegen(
+    pair: Pair<Rule>,
+    mut builder: &mut FunctionBuilder,
+) -> io::Result<Option<CodeChange>> {
+    let mut return_value: Option<CodeChange> = None;
+
+    dbg!(&pair.as_str());
+
     match dbg!(pair.as_rule()) {
         Rule::file => {
             for inner in pair.into_inner() {
-                codegen(inner, &mut builder)?;
+                return_value = codegen(inner, &mut builder)?;
             }
         }
 
@@ -24,16 +42,15 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Resul
             builder.switch_to_block(block);
 
             for inner in pair.into_inner() {
-                codegen(inner, &mut builder)?;
+                return_value = codegen(inner, &mut builder)?;
             }
         }
 
-        Rule::atom => codegen(pair.into_inner().last().unwrap(), &mut builder)?,
+        Rule::atom => {
+            return_value = codegen(pair.into_inner().last().unwrap(), &mut builder)?;
+        }
 
         Rule::boolean => {
-            let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 1);
-            let slot = builder.create_stack_slot(data);
-
             let inner = pair.into_inner().last().unwrap();
 
             let bool_ = match inner.as_rule() {
@@ -43,21 +60,18 @@ pub fn codegen(pair: Pair<Rule>, mut builder: &mut FunctionBuilder) -> io::Resul
             };
 
             let int_bool = builder.ins().bint(I8, bool_);
-            builder.ins().stack_store(int_bool, slot, 0);
+            return_value = Some(CodeChange::TypedValue((int_bool, I8)));
         }
 
         Rule::number => {
-            let data = StackSlotData::new(StackSlotKind::ExplicitSlot, 8);
-            let slot = builder.create_stack_slot(data);
-
             let raw_n: i64 = dbg!(pair.as_str().parse().unwrap());
             let encoded = builder.ins().iconst(I64, Imm64::new(raw_n));
-            builder.ins().stack_store(encoded, slot, 0);
+            return_value = Some(CodeChange::TypedValue((encoded, I64)));
         }
 
         Rule::EOI => {}
         _ => unreachable!("You've gone and fucked it now have't you?"),
     }
 
-    Ok(())
+    Ok(return_value)
 }

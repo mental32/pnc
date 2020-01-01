@@ -56,10 +56,10 @@ impl Compiler {
         }
     }
 
-    pub fn compile<E, F>(cb: F) -> Result<Product, E>
+    pub fn compile<T, E, F>(cb: F) -> Result<Product, E>
     where
         E: Into<std::io::Error>,
-        F: FnOnce(&mut FunctionBuilder) -> Result<(), E>,
+        F: FnOnce(&mut FunctionBuilder) -> Result<Option<T>, E>,
     {
         let mut compiler = Self::new();
 
