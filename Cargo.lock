@@ -370,6 +370,7 @@ name = "pnc"
 version = "0.1.0"
 dependencies = [
  "cranelift-codegen",
+ "cranelift-entity",
  "cranelift-faerie",
  "cranelift-frontend",
  "cranelift-module",
