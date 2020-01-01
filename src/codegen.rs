@@ -69,6 +69,56 @@ pub fn codegen(
             return_value = Some(CodeChange::TypedValue((encoded, I64)));
         }
 
+        Rule::operation => {
+            let mut inner = pair.clone().into_inner();
+            let operator = dbg!(inner.next().unwrap().as_str());
+            let mut rest = inner.collect::<Vec<Pair<Rule>>>();
+
+            let atoms: Vec<Pair<Rule>> = rest.drain_filter(|pair| pair.as_rule() == Rule::atom).collect();
+            let s_exprs: Vec<Pair<Rule>> = rest;
+
+            let mut returns = vec![];
+
+            // No S expressions means the operation is formed of only atoms
+            // Out grammar already picks up empty brackets as boolean falsities.
+            if s_exprs.len() == 0 {
+                for atom in atoms {
+                    match codegen(atom, &mut builder)? {
+                        Some(CodeChange::TypedValue(tv)) => returns.push(tv),
+                        _ => unreachable!(),
+                    }
+                }
+
+                let retval = {
+                    let zero = builder.ins().iconst(I64, 0);
+                    let mut acc_value = zero;
+
+                    for (value, _) in returns {
+                        acc_value = match operator {
+                            "+" => builder.ins().iadd(acc_value, value),
+                            "-" => builder.ins().isub(acc_value, value),
+                            "*" => builder.ins().imul(acc_value, value),
+                            _ => unreachable!()
+                        }
+                    }
+
+                    (acc_value, I64)
+                };
+
+                return Ok(Some(CodeChange::BlockReturns(vec![retval])));
+            }
+ 
+            for pair in s_exprs.into_iter().chain(atoms) {
+                match codegen(pair, &mut builder)? {
+                    Some(CodeChange::TypedValue(tv)) => returns.push(tv),
+                    Some(CodeChange::BlockReturns(returns_)) => returns.extend(returns_),
+                    value => unreachable!(format!("{:?}", value)),
+                }
+            }
+
+            return_value = Some(CodeChange::BlockReturns(returns));
+        }
+
         Rule::EOI => {}
         _ => unreachable!("You've gone and fucked it now have't you?"),
     }
