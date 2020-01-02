@@ -1,15 +1,15 @@
 use {
     cranelift_codegen::{
         ir::{
-            types::I32, AbiParam, ExternalName, Function, InstBuilder, Signature, StackSlotData,
-            StackSlotKind,
+            types::I32, AbiParam, ExternalName, Function, InstBuilder, Signature,
         },
-        isa::{self, CallConv},
+        isa::{self, CallConv, TargetIsa},
         settings::{self, Configurable},
         verify_function, Context,
     },
     cranelift_faerie::{FaerieBackend, FaerieBuilder, FaerieTrapCollection},
-    cranelift_frontend::{FunctionBuilder, FunctionBuilderContext},
+    cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable},
+    cranelift_entity::EntityRef,
     cranelift_module::{Backend, FuncId, Linkage, Module as CraneliftModule, ModuleError},
 };
 
@@ -20,8 +20,8 @@ pub struct Compiler {
     pub module: Module,
 }
 
-impl Compiler {
-    pub fn new() -> Self {
+impl Default for Compiler {
+    fn default() -> Self {
         let mut flags_builder = settings::builder();
 
         // allow creating shared libraries
@@ -43,17 +43,20 @@ impl Compiler {
             .unwrap()
             .finish(settings::Flags::new(flags_builder));
 
-        let builder = FaerieBuilder::new(
+        Self::new(isa).unwrap()
+    }
+}
+
+impl Compiler {
+    pub fn new(isa: Box<dyn TargetIsa>) -> Result<Self, ModuleError> {
+        let module = Module::new(FaerieBuilder::new(
             isa,
             "<empty>".to_string(),
             FaerieTrapCollection::Disabled,
             cranelift_module::default_libcall_names(),
-        )
-        .unwrap();
+        )?);
 
-        Self {
-            module: Module::new(builder),
-        }
+        Ok(Self { module })
     }
 
     pub fn compile<T, E, F>(cb: F) -> Result<Product, E>
@@ -61,7 +64,7 @@ impl Compiler {
         E: Into<std::io::Error>,
         F: FnOnce(&mut FunctionBuilder) -> Result<Option<T>, E>,
     {
-        let mut compiler = Self::new();
+        let mut compiler = Self::default();
 
         // Handles setup and teardown logic, i.e.:
         //  - defnining a main and its signature.
