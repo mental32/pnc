@@ -83,14 +83,14 @@ impl Compiler {
         let mut ctx = FunctionBuilderContext::new();
         let mut builder = FunctionBuilder::new(&mut main, &mut ctx);
 
-        let exit_status_slot =
-            { builder.create_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 4)) };
+        let exit_status = Variable::new(0);
+        builder.declare_var(exit_status, I32);
 
         let start = builder.create_ebb();
         builder.switch_to_block(start);
 
         let zero = builder.ins().iconst(I32, 0);
-        builder.ins().stack_store(zero, exit_status_slot, 0);
+        builder.def_var(exit_status, zero);
 
         // Invoke the callback for the source codegen.
         cb(&mut builder)?;
@@ -100,7 +100,7 @@ impl Compiler {
         builder.ins().jump(end, &[]);
         builder.switch_to_block(end);
 
-        let exit_status = builder.ins().stack_load(I32, exit_status_slot, 0);
+        let exit_status = builder.use_var(exit_status);
         builder.ins().return_(&[exit_status]);
 
         builder.seal_all_blocks();
