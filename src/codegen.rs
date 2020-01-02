@@ -5,8 +5,8 @@ use {
         types::{B8, I64, I8},
         Inst, InstBuilder, Type, Value,
     },
-    cranelift_frontend::{FunctionBuilder, Variable},
     cranelift_entity::EntityRef,
+    cranelift_frontend::{FunctionBuilder, Variable},
     pest::iterators::Pair,
     std::io,
 };
@@ -74,13 +74,15 @@ pub fn codegen(
             let operator = dbg!(inner.next().unwrap().as_str());
             let mut rest = inner.collect::<Vec<Pair<Rule>>>();
 
-            let atoms: Vec<Pair<Rule>> = rest.drain_filter(|pair| pair.as_rule() == Rule::atom).collect();
+            let atoms: Vec<Pair<Rule>> = rest
+                .drain_filter(|pair| pair.as_rule() == Rule::atom)
+                .collect();
             let s_exprs: Vec<Pair<Rule>> = rest;
 
             let mut returns = vec![];
 
             // No S expressions means the operation is formed of only atoms
-            // Out grammar already picks up empty brackets as boolean falsities.
+            // Our grammar already picks up empty brackets as boolean falsities.
             if s_exprs.len() == 0 {
                 for atom in atoms {
                     match codegen(atom, &mut builder)? {
@@ -90,15 +92,18 @@ pub fn codegen(
                 }
 
                 let retval = {
-                    let zero = builder.ins().iconst(I64, 0);
-                    let mut acc_value = zero;
+                    let mut acc_value = returns
+                        .pop()
+                        .and_then(|v| Some(v.0))
+                        .or_else(|| Some(builder.ins().iconst(I64, 0)))
+                        .unwrap();
 
                     for (value, _) in returns {
                         acc_value = match operator {
                             "+" => builder.ins().iadd(acc_value, value),
                             "-" => builder.ins().isub(acc_value, value),
                             "*" => builder.ins().imul(acc_value, value),
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         }
                     }
 
@@ -107,16 +112,55 @@ pub fn codegen(
 
                 return Ok(Some(CodeChange::BlockReturns(vec![retval])));
             }
- 
-            for pair in s_exprs.into_iter().chain(atoms) {
+
+            for pair in s_exprs.into_iter() {
                 match codegen(pair, &mut builder)? {
-                    Some(CodeChange::TypedValue(tv)) => returns.push(tv),
                     Some(CodeChange::BlockReturns(returns_)) => returns.extend(returns_),
                     value => unreachable!(format!("{:?}", value)),
                 }
             }
 
-            return_value = Some(CodeChange::BlockReturns(returns));
+            let mut arguments = vec![];
+            let mut bucket: Vec<TypedValue> = vec![];
+
+            let block = builder.create_ebb();
+            for (val, tp) in &returns {
+                builder.append_ebb_param(block, *tp);
+                arguments.push(*val);
+                bucket.push((*val, *tp));
+            }
+
+            builder.ins().jump(block, arguments.as_slice());
+            builder.switch_to_block(block);
+
+
+            for atom in atoms {
+                match codegen(atom, &mut builder)? {
+                    Some(CodeChange::TypedValue(tv)) => bucket.push(tv),
+                    value => unreachable!(format!("{:?}", value)),
+                }
+            };
+
+            let retval = {
+                let mut acc_value = bucket
+                    .pop()
+                    .and_then(|v| Some(v.0))
+                    .or_else(|| Some(builder.ins().iconst(I64, 0)))
+                    .unwrap();
+
+                for (value, _) in bucket {
+                    acc_value = match operator {
+                        "+" => builder.ins().iadd(acc_value, value),
+                        "-" => builder.ins().isub(acc_value, value),
+                        "*" => builder.ins().imul(acc_value, value),
+                        _ => unreachable!(),
+                    }
+                }
+
+                (acc_value, I64)
+            };
+
+            return_value = Some(CodeChange::BlockReturns(vec![retval]));
         }
 
         Rule::EOI => {}
