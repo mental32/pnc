@@ -37,13 +37,19 @@ pub fn codegen(
         }
 
         Rule::s_expr => {
+            let mut collected: Vec<Pair<Rule>> = pair.into_inner().collect();
+
+            if collected.len() == 1 && collected[0].as_rule() == Rule::atom {
+                return Ok(codegen(collected.pop().unwrap(), &mut builder)?);
+            }
+
             if !builder.is_pristine() {
                 let block = builder.create_ebb();
                 builder.ins().jump(block, &[]);
-                builder.switch_to_block(block);                
+                builder.switch_to_block(block);
             }
 
-            for inner in pair.into_inner() {
+            for inner in collected {
                 return_value = codegen(inner, &mut builder)?;
             }
         }
