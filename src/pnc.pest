@@ -1,16 +1,33 @@
 file = {SOI ~ (s_expr | atom) ~ whitespace* ~ EOI}
 
 atom = { boolean | number | string | name }
-s_expr = { "(" ~ whitespace* ~ (operation | s_expr | atom)? ~ whitespace* ~ ")" }
+s_expr = {
+    "(" ~ whitespace*
+    ~ (operation | s_expr | atom)?
+    ~ whitespace* ~ ")"
+}
 
 boolean = { truth | falsity }
-operation = { (s_expr | operator) ~ whitespace* ~ whitespaced }
-operator = { ("+" | "-" | "*" | "//" | "/" | name) }
+operation = { (s_expr | operator) ~ whitespaced }
 whitespaced = _{ whitespace* ~ (atom | s_expr) ~ (whitespace* ~ (atom | s_expr))* }
+operator = {
+    addition
+    | subtraction
+    | multiplication
+    | floor_division
+    | true_division
+    | name
+}
 
 whitespace = _{ " " | NEWLINE }
 number = { ASCII_DIGIT+ }
 name = { (ASCII_ALPHA | "_" | "-")+ }
 string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
 truth = { "t" }
 falsity = { "nil" | "()" }
+addition = { "+" }
+subtraction = { "-" }
+multiplication = { "*" }
+true_division = { "/" }
+floor_division = { "//" }
