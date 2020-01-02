@@ -37,9 +37,11 @@ pub fn codegen(
         }
 
         Rule::s_expr => {
-            let block = builder.create_ebb();
-            builder.ins().jump(block, &[]);
-            builder.switch_to_block(block);
+            if !builder.is_pristine() {
+                let block = builder.create_ebb();
+                builder.ins().jump(block, &[]);
+                builder.switch_to_block(block);                
+            }
 
             for inner in pair.into_inner() {
                 return_value = codegen(inner, &mut builder)?;
