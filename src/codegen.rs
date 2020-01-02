@@ -129,23 +129,27 @@ pub fn codegen(
             let mut arguments = vec![];
             let mut bucket: Vec<TypedValue> = vec![];
 
-            let block = builder.create_ebb();
+            let block = if !builder.is_pristine() {
+                builder.create_ebb()
+            } else {
+                builder.func.layout.last_ebb().unwrap()
+            };
+
             for (val, tp) in &returns {
-                builder.append_ebb_param(block, *tp);
+                let param = builder.append_ebb_param(block, *tp);
                 arguments.push(*val);
-                bucket.push((*val, *tp));
+                bucket.push((param, *tp));
             }
 
             builder.ins().jump(block, arguments.as_slice());
             builder.switch_to_block(block);
-
 
             for atom in atoms {
                 match codegen(atom, &mut builder)? {
                     Some(CodeChange::TypedValue(tv)) => bucket.push(tv),
                     value => unreachable!(format!("{:?}", value)),
                 }
-            };
+            }
 
             let retval = {
                 let mut acc_value = bucket
@@ -155,7 +159,7 @@ pub fn codegen(
                     .unwrap();
 
                 for (value, _) in bucket {
-                    acc_value = match operator {
+                    acc_value = match operator.as_str() {
                         "+" => builder.ins().iadd(acc_value, value),
                         "-" => builder.ins().isub(acc_value, value),
                         "*" => builder.ins().imul(acc_value, value),
