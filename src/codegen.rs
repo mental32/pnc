@@ -73,11 +73,14 @@ pub fn codegen(
 
         Rule::operation => {
             let mut inner = pair.clone().into_inner();
-            let operator = dbg!(inner.next().unwrap().as_str());
-            let mut rest = inner.collect::<Vec<Pair<Rule>>>();
+            let operator = inner.next().unwrap();
 
+            let mut rest = inner.collect::<Vec<Pair<Rule>>>();
             let atoms: Vec<Pair<Rule>> = rest
-                .drain_filter(|pair| pair.as_rule() == Rule::atom)
+                .drain_filter(|pair| {
+                    pair.as_rule() == Rule::atom
+                        || pair.clone().into_inner().last().unwrap().as_rule() == Rule::atom
+                })
                 .collect();
             let s_exprs: Vec<Pair<Rule>> = rest;
 
@@ -101,7 +104,7 @@ pub fn codegen(
                         .unwrap();
 
                     for (value, _) in returns {
-                        acc_value = match operator {
+                        acc_value = match operator.as_str() {
                             "+" => builder.ins().iadd(acc_value, value),
                             "-" => builder.ins().isub(acc_value, value),
                             "*" => builder.ins().imul(acc_value, value),
@@ -117,7 +120,8 @@ pub fn codegen(
 
             for pair in s_exprs.into_iter() {
                 match codegen(pair, &mut builder)? {
-                    Some(CodeChange::BlockReturns(returns_)) => returns.extend(returns_),
+                    Some(CodeChange::BlockReturns(values)) => returns.extend(values),
+                    Some(CodeChange::TypedValue(tv)) => returns.push(tv),
                     value => unreachable!(format!("{:?}", value)),
                 }
             }
