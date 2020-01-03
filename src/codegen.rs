@@ -134,6 +134,7 @@ pub fn codegen(
                 match codegen(pair, &mut builder)? {
                     Some(CodeChange::BlockReturns(mut values)) => {
                         assert!(values.len() == 1);
+                        //^ We should look into whether BlockReturns will ever return more than two SSA references 
                         returns.push((index, values.pop().unwrap()));
                     }
 

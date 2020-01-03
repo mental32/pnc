@@ -1,4 +1,4 @@
-file = {SOI ~ (s_expr | atom) ~ whitespace* ~ EOI}
+file = {SOI ~ whitespace* ~ ((s_expr | atom) ~ whitespace*)* ~ EOI}
 
 atom = { boolean | number | string | name }
 s_expr = {
