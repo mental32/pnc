@@ -10,6 +10,14 @@ s_expr = {
 boolean = { truth | falsity }
 operation = { (s_expr | operator) ~ whitespaced }
 whitespaced = _{ whitespace* ~ (atom | s_expr) ~ (whitespace* ~ (atom | s_expr))* }
+
+number = {
+    base10
+    | base8
+    | base16
+    | base2
+}
+
 operator = {
     addition
     | subtraction
@@ -19,8 +27,12 @@ operator = {
     | name
 }
 
+base10 = { "-"? ~ ASCII_DIGIT+ }
+base16 = { "#" ~ ("X" | "x") ~ ASCII_HEX_DIGIT+ }
+base8 = { "#" ~ ("O" | "o") ~ ASCII_OCT_DIGIT+ }
+base2 = { "#" ~ ("B" | "b") ~ ASCII_BIN_DIGIT+ }
+
 whitespace = _{ " " | NEWLINE }
-number = { ASCII_DIGIT+ }
 name = { (ASCII_ALPHA | "_" | "-")+ }
 string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 

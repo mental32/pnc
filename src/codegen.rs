@@ -1,8 +1,7 @@
 use {
     crate::parsing::Rule,
     cranelift_codegen::ir::{
-        immediates::Imm64,
-        types::{B8, I64, I8},
+        types::{B8, I16, I32, I64, I8},
         Inst, InstBuilder, Type, Value,
     },
     cranelift_frontend::FunctionBuilder,
@@ -11,6 +10,19 @@ use {
 };
 
 pub type TypedValue = (Value, Type);
+
+fn parse(this: &str, rule: Rule) -> i64 {
+    let raw = match rule {
+        Rule::base10 => dbg!(this.parse::<i64>()),
+        Rule::base16 => i64::from_str_radix(this.get(2..).unwrap(), 16),
+        Rule::base8 => i64::from_str_radix(this.get(2..).unwrap(), 8),
+        Rule::base2 => i64::from_str_radix(this.get(2..).unwrap(), 2),
+        _ => unreachable!(),
+    }
+    .unwrap();
+
+    raw
+}
 
 #[derive(Debug)]
 pub enum CodeChange {
@@ -25,8 +37,6 @@ pub fn codegen(
     mut builder: &mut FunctionBuilder,
 ) -> io::Result<Option<CodeChange>> {
     let mut return_value: Option<CodeChange> = None;
-
-    dbg!(&pair.as_str());
 
     match dbg!(pair.as_rule()) {
         Rule::file => {
@@ -71,9 +81,25 @@ pub fn codegen(
         }
 
         Rule::number => {
-            let raw_n: i64 = dbg!(pair.as_str().parse().unwrap());
-            let encoded = builder.ins().iconst(I64, Imm64::new(raw_n));
-            return_value = Some(CodeChange::TypedValue((encoded, I64)));
+            let number = pair.into_inner().last().unwrap();
+
+            let rule = number.as_rule();
+            let span = number.as_str();
+
+            let _signed = rule == Rule::base10 && span.starts_with("-");
+            let raw = parse(span, rule);
+            let bit_count = 64 - raw.leading_zeros();
+
+            let tp = match bit_count {
+                0..=8 => I8,
+                9..=16 => I16,
+                17..=32 => I32,
+                33..=64 => I64,
+                _ => unreachable!(),
+            };
+
+            let encoded = builder.ins().iconst(tp, raw);
+            return_value = Some(CodeChange::TypedValue((encoded, tp)));
         }
 
         Rule::operation => {
@@ -108,13 +134,19 @@ pub fn codegen(
                 }
 
                 let retval = {
-                    let mut acc_value = returns
+                    let (mut acc_value, mut acc_tp) = returns
                         .pop()
-                        .and_then(|v| Some(v.0))
-                        .or_else(|| Some(builder.ins().iconst(I64, 0)))
+                        .or_else(|| Some((builder.ins().iconst(I64, 0), I64)))
                         .unwrap();
 
-                    for (value, _) in returns {
+                    for (mut value, tp) in returns {
+                        if tp.bits() < acc_tp.bits() {
+                            value = builder.ins().sextend(acc_tp, value);
+                        } else if tp.bits() > acc_tp.bits() {
+                            acc_value = builder.ins().sextend(tp, acc_value);
+                            acc_tp = tp;
+                        }
+
                         acc_value = match operator.as_str() {
                             "+" => builder.ins().iadd(acc_value, value),
                             "-" => builder.ins().isub(acc_value, value),
@@ -134,7 +166,7 @@ pub fn codegen(
                 match codegen(pair, &mut builder)? {
                     Some(CodeChange::BlockReturns(mut values)) => {
                         assert!(values.len() == 1);
-                        //^ We should look into whether BlockReturns will ever return more than two SSA references 
+                        //^ We should look into whether BlockReturns will ever return more than two SSA references
                         returns.push((index, values.pop().unwrap()));
                     }
 
