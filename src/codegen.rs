@@ -32,6 +32,35 @@ pub enum CodeChange {
     TypedValue(TypedValue),
 }
 
+fn operate(
+    mut bucket: Vec<TypedValue>,
+    operator: Pair<Rule>,
+    builder: &mut FunctionBuilder,
+) -> TypedValue {
+    let (mut acc_value, mut acc_tp) = bucket
+        .pop()
+        .or_else(|| Some((builder.ins().iconst(I64, 0), I64)))
+        .unwrap();
+
+    for (mut value, tp) in bucket {
+        if tp.bits() < acc_tp.bits() {
+            value = builder.ins().sextend(acc_tp, value);
+        } else if tp.bits() > acc_tp.bits() {
+            acc_value = builder.ins().sextend(tp, acc_value);
+            acc_tp = tp;
+        }
+
+        acc_value = match operator.as_str() {
+            "+" => builder.ins().iadd(acc_value, value),
+            "-" => builder.ins().isub(acc_value, value),
+            "*" => builder.ins().imul(acc_value, value),
+            _ => unreachable!(),
+        }
+    }
+
+    (acc_value, I64)
+}
+
 pub fn codegen(
     pair: Pair<Rule>,
     mut builder: &mut FunctionBuilder,
@@ -66,6 +95,8 @@ pub fn codegen(
         Rule::atom => {
             return_value = codegen(pair.into_inner().last().unwrap(), &mut builder)?;
         }
+
+        Rule::name => {}
 
         Rule::boolean => {
             let inner = pair.into_inner().last().unwrap();
@@ -124,40 +155,15 @@ pub fn codegen(
             // No S expressions means the operation is formed of only atoms
             // Our grammar already picks up empty brackets as boolean falsities.
             if s_exprs.len() == 0 {
-                let mut returns: Vec<TypedValue> = vec![];
-
+                let mut bucket = vec![];
                 for (_, atom) in atoms {
                     match codegen(atom, &mut builder)? {
-                        Some(CodeChange::TypedValue(tv)) => returns.push(tv),
+                        Some(CodeChange::TypedValue(tv)) => bucket.push(tv),
                         _ => unreachable!(),
                     }
                 }
 
-                let retval = {
-                    let (mut acc_value, mut acc_tp) = returns
-                        .pop()
-                        .or_else(|| Some((builder.ins().iconst(I64, 0), I64)))
-                        .unwrap();
-
-                    for (mut value, tp) in returns {
-                        if tp.bits() < acc_tp.bits() {
-                            value = builder.ins().sextend(acc_tp, value);
-                        } else if tp.bits() > acc_tp.bits() {
-                            acc_value = builder.ins().sextend(tp, acc_value);
-                            acc_tp = tp;
-                        }
-
-                        acc_value = match operator.as_str() {
-                            "+" => builder.ins().iadd(acc_value, value),
-                            "-" => builder.ins().isub(acc_value, value),
-                            "*" => builder.ins().imul(acc_value, value),
-                            _ => unreachable!(),
-                        }
-                    }
-
-                    (acc_value, I64)
-                };
-
+                let retval = operate(bucket, operator, &mut builder);
                 return Ok(Some(CodeChange::BlockReturns(vec![retval])));
             }
 
@@ -167,6 +173,7 @@ pub fn codegen(
                     Some(CodeChange::BlockReturns(mut values)) => {
                         assert!(values.len() == 1);
                         //^ We should look into whether BlockReturns will ever return more than two SSA references
+                        //^ Forms appear to allow returning more than a single value at a time, not quite sure how to handle this...
                         returns.push((index, values.pop().unwrap()));
                     }
 
@@ -203,24 +210,11 @@ pub fn codegen(
             bucket.sort_by_key(|v| v.0);
             bucket.reverse();
 
-            let retval = {
-                let mut acc_value = bucket
-                    .pop()
-                    .and_then(|v| Some((v.1).0))
-                    .or_else(|| Some(builder.ins().iconst(I64, 0)))
-                    .unwrap();
-
-                for (_, (value, _)) in bucket.into_iter().rev() {
-                    acc_value = match operator.as_str() {
-                        "+" => builder.ins().iadd(acc_value, value),
-                        "-" => builder.ins().isub(acc_value, value),
-                        "*" => builder.ins().imul(acc_value, value),
-                        _ => unreachable!(),
-                    }
-                }
-
-                (acc_value, I64)
-            };
+            let retval = operate(
+                bucket.iter().map(|(_, value)| *value).collect(),
+                operator,
+                &mut builder,
+            );
 
             return_value = Some(CodeChange::BlockReturns(vec![retval]));
         }
