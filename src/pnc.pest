@@ -9,7 +9,11 @@ s_expr = {
 
 boolean = { truth | falsity }
 operation = { (s_expr | operator) ~ whitespaced }
-whitespaced = _{ whitespace* ~ (atom | s_expr) ~ (whitespace* ~ (atom | s_expr))* }
+whitespaced = _{
+    whitespace*
+    ~ (atom | s_expr)
+    ~ (whitespace* ~ (atom | s_expr))*
+}
 
 number = {
     base10
