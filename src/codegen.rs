@@ -5,8 +5,7 @@ use {
         types::{B8, I64, I8},
         Inst, InstBuilder, Type, Value,
     },
-    cranelift_entity::EntityRef,
-    cranelift_frontend::{FunctionBuilder, Variable},
+    cranelift_frontend::FunctionBuilder,
     pest::iterators::Pair,
     std::io,
 };
@@ -81,21 +80,27 @@ pub fn codegen(
             let mut inner = pair.clone().into_inner();
             let operator = inner.next().unwrap();
 
-            let mut rest = inner.collect::<Vec<Pair<Rule>>>();
-            let atoms: Vec<Pair<Rule>> = rest
-                .drain_filter(|pair| {
-                    pair.as_rule() == Rule::atom
-                        || pair.clone().into_inner().last().unwrap().as_rule() == Rule::atom
-                })
-                .collect();
-            let s_exprs: Vec<Pair<Rule>> = rest;
+            let mut rest = inner
+                .into_iter()
+                .enumerate()
+                .collect::<Vec<(usize, Pair<Rule>)>>();
 
-            let mut returns = vec![];
+            fn is_atomic(pair: &mut Pair<Rule>) -> bool {
+                (pair.as_rule() == Rule::atom
+                    || pair.clone().into_inner().last().unwrap().as_rule() == Rule::atom)
+            }
+
+            let atoms: Vec<(usize, Pair<Rule>)> =
+                rest.drain_filter(|(_, pair)| is_atomic(pair)).collect();
+
+            let s_exprs: Vec<(usize, Pair<Rule>)> = rest;
 
             // No S expressions means the operation is formed of only atoms
             // Our grammar already picks up empty brackets as boolean falsities.
             if s_exprs.len() == 0 {
-                for atom in atoms {
+                let mut returns: Vec<TypedValue> = vec![];
+
+                for (_, atom) in atoms {
                     match codegen(atom, &mut builder)? {
                         Some(CodeChange::TypedValue(tv)) => returns.push(tv),
                         _ => unreachable!(),
@@ -124,16 +129,21 @@ pub fn codegen(
                 return Ok(Some(CodeChange::BlockReturns(vec![retval])));
             }
 
-            for pair in s_exprs.into_iter() {
+            let mut returns: Vec<(usize, TypedValue)> = vec![];
+            for (index, pair) in s_exprs {
                 match codegen(pair, &mut builder)? {
-                    Some(CodeChange::BlockReturns(values)) => returns.extend(values),
-                    Some(CodeChange::TypedValue(tv)) => returns.push(tv),
+                    Some(CodeChange::BlockReturns(mut values)) => {
+                        assert!(values.len() == 1);
+                        returns.push((index, values.pop().unwrap()));
+                    }
+
+                    Some(CodeChange::TypedValue(tv)) => returns.push((index, tv)),
                     value => unreachable!(format!("{:?}", value)),
                 }
             }
 
             let mut arguments = vec![];
-            let mut bucket: Vec<TypedValue> = vec![];
+            let mut bucket: Vec<(usize, TypedValue)> = vec![];
 
             let block = if !builder.is_pristine() {
                 builder.create_ebb()
@@ -141,30 +151,33 @@ pub fn codegen(
                 builder.func.layout.last_ebb().unwrap()
             };
 
-            for (val, tp) in &returns {
+            for (index, (val, tp)) in &returns {
                 let param = builder.append_ebb_param(block, *tp);
                 arguments.push(*val);
-                bucket.push((param, *tp));
+                bucket.push((*index, (param, *tp)));
             }
 
             builder.ins().jump(block, arguments.as_slice());
             builder.switch_to_block(block);
 
-            for atom in atoms {
+            for (index, atom) in atoms {
                 match codegen(atom, &mut builder)? {
-                    Some(CodeChange::TypedValue(tv)) => bucket.push(tv),
+                    Some(CodeChange::TypedValue(tv)) => bucket.push((index, tv)),
                     value => unreachable!(format!("{:?}", value)),
                 }
             }
 
+            bucket.sort_by_key(|v| v.0);
+            bucket.reverse();
+
             let retval = {
                 let mut acc_value = bucket
                     .pop()
-                    .and_then(|v| Some(v.0))
+                    .and_then(|v| Some((v.1).0))
                     .or_else(|| Some(builder.ins().iconst(I64, 0)))
                     .unwrap();
 
-                for (value, _) in bucket {
+                for (_, (value, _)) in bucket.into_iter().rev() {
                     acc_value = match operator.as_str() {
                         "+" => builder.ins().iadd(acc_value, value),
                         "-" => builder.ins().isub(acc_value, value),
