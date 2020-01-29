@@ -29,7 +29,8 @@ fn main() -> io::Result<()> {
     if let Ok(stream) = Penance::parse(Rule::file, &buf) {
         let parsed = stream.last().unwrap();
 
-        let product = Compiler::compile(|mut builder| codegen(parsed, &mut builder))?;
+        let mut symbol_table = SymbolTable::new();
+        let product = Compiler::compile(|mut builder| codegen(parsed, &mut builder, &mut symbol_table))?;
 
         let object_file = Path::new("a.obj");
 

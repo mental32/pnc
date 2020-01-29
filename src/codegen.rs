@@ -64,6 +64,7 @@ fn operate(
 pub fn codegen(
     pair: Pair<Rule>,
     mut builder: &mut FunctionBuilder,
+    mut symbol_table: &mut SymbolTable, 
 ) -> io::Result<Option<CodeChange>> {
     let mut return_value: Option<CodeChange> = None;
 
